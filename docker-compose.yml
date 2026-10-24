@@ -1,0 +1,54 @@
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    container_name: machinemind_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: machinemind
+      POSTGRES_PASSWORD: machinemind_pass
+      POSTGRES_DB: machinemind
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U machinemind"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build:
+      context: ./services/api
+      dockerfile: Dockerfile
+    container_name: machinemind_api
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://machinemind:machinemind_pass@db:5432/machinemind
+      SYNC_DATABASE_URL: postgresql://machinemind:machinemind_pass@db:5432/machinemind
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./services/api:/app
+      - uploads:/app/uploads
+
+  web:
+    build:
+      context: ./apps/web
+      dockerfile: Dockerfile
+    container_name: machinemind_web
+    restart: unless-stopped
+    depends_on:
+      - api
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:8000
+    ports:
+      - "3000:3000"
+
+volumes:
+  pgdata:
+  uploads:

@@ -1,0 +1,41 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+dist/
+build/
+.venv/
+venv/
+env/
+
+# Env
+.env
+*.env.local
+
+# Uploads / data
+uploads/
+*.pdf
+
+# DB
+*.sqlite3
+
+# Node
+node_modules/
+.next/
+out/
+npm-debug.log*
+
+# IDE
+.idea/
+.vscode/
+*.swp
+.DS_Store
+
+# Docker
+*.log
+
+# Secrets
+*.pem
+*.key

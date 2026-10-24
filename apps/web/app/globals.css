@@ -1,0 +1,84 @@
+@import "tailwindcss";
+
+:root {
+  --brand: #6366f1;
+  --brand-light: #818cf8;
+  --surface: #111827;
+  --surface-2: #1f2937;
+  --border: #374151;
+}
+
+* { box-sizing: border-box; }
+
+::selection { background: #6366f133; color: #e0e7ff; }
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #374151; border-radius: 3px; }
+
+/* Smooth transitions */
+a, button { transition: all 0.15s ease; }
+
+/* Chat bubble animations */
+@keyframes fadeSlideUp {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.animate-msg { animation: fadeSlideUp 0.25s ease; }
+
+/* Typing indicator */
+@keyframes bounce {
+  0%, 80%, 100% { transform: translateY(0); }
+  40%            { transform: translateY(-6px); }
+}
+.typing-dot { animation: bounce 1.2s ease-in-out infinite; }
+.typing-dot:nth-child(2) { animation-delay: 0.15s; }
+.typing-dot:nth-child(3) { animation-delay: 0.3s; }
+
+/* Shimmer skeleton */
+@keyframes shimmer {
+  from { background-position: -200% 0; }
+  to   { background-position: 200% 0; }
+}
+.skeleton {
+  background: linear-gradient(90deg, #1f2937 25%, #374151 50%, #1f2937 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  border-radius: 6px;
+}
+
+/* Glass card */
+.glass {
+  background: rgba(255, 255, 255, 0.03);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+/* Gradient text */
+.gradient-text {
+  background: linear-gradient(135deg, #818cf8, #a78bfa, #34d399);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Status badges */
+.status-pending    { @apply bg-yellow-900/50 text-yellow-300 border border-yellow-700/50; }
+.status-processing { @apply bg-blue-900/50   text-blue-300   border border-blue-700/50; }
+.status-completed  { @apply bg-green-900/50  text-green-300  border border-green-700/50; }
+.status-error      { @apply bg-red-900/50    text-red-300    border border-red-700/50; }
+
+/* Pulse dot for processing */
+@keyframes pulse-ring {
+  0%   { transform: scale(0.8); opacity: 1; }
+  100% { transform: scale(2);   opacity: 0; }
+}
+.pulse-dot::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: currentColor;
+  animation: pulse-ring 1.25s ease-out infinite;
+}
