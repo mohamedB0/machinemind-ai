@@ -82,6 +82,15 @@ export const conversationsApi = {
     }, token),
 };
 
+// ── Help / guide chatbot (public, no auth) ────────────────────────────────────
+export const helpApi = {
+  send: (question: string, history: { role: "user" | "assistant"; content: string }[]) =>
+    request<{ answer: string }>("/api/help/chat", {
+      method: "POST",
+      body: JSON.stringify({ question, history }),
+    }),
+};
+
 // ── Manual page images (citations) ──────────────────────────────────────────
 export const manualPageUrl = (manualId: string, page: number, token: string) =>
   `${API_BASE}/api/manuals/${manualId}/pages/${page}?token=${encodeURIComponent(token)}`;

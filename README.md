@@ -56,6 +56,7 @@ User → Next.js (3000) → FastAPI (8000) → PostgreSQL+pgvector
 | Backend | Python 3.11, FastAPI, Pydantic v2 |
 | Database | PostgreSQL 16 + pgvector |
 | PDF extraction | PyMuPDF |
+| Figures & scanned pages | Vision LLM (Groq/Gemini/OpenRouter, auto-fallback) + local Tesseract OCR |
 | Embeddings | multilingual-e5-large (local) |
 | LLM | Groq (llama-3.3-70b-versatile) |
 | Auth | JWT (python-jose + passlib) |

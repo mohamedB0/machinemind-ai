@@ -18,6 +18,10 @@ email-validator==2.2.0
 # PDF processing
 pymupdf==1.24.14
 
+# OCR (requires the Tesseract binary; auto-detected by app/services/ocr.py)
+pytesseract==0.3.13
+Pillow==11.3.0
+
 # Embeddings (local, no API needed)
 sentence-transformers==3.3.1
 

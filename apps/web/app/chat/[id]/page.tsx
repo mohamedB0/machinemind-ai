@@ -1,11 +1,17 @@
 "use client";
-import { useEffect, useState, useRef, useCallback } from "react";
+import { Suspense, useEffect, useState, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/lib/auth-context";
 import { conversationsApi, machinesApi, manualPageUrl, Message, Source, Machine, Manual } from "@/lib/api";
+import { IconBack, IconArrowUp, IconChevron } from "@/lib/icons";
 
-export default function ChatPage() {
+const pad3 = (n: number) => String(n).padStart(3, "0");
+const kindGlyph = (t?: string) => (t === "figure" ? "FIG" : t === "table" ? "TBL" : "TXT");
+const kindFallback = (t?: string) => (t === "figure" ? "Figure" : t === "table" ? "Table" : "Section");
+const timeOf = (iso: string) => new Date(iso).toLocaleTimeString([], { hour12: false });
+
+function ChatPage() {
   const { id } = useParams<{ id: string }>();
   const { token, isLoading } = useAuth();
   const router = useRouter();
@@ -77,49 +83,64 @@ export default function ChatPage() {
   if (isLoading || loading) return <ChatSkeleton />;
 
   return (
-    <div className="min-h-screen bg-gray-950 flex flex-col">
+    <div className="min-h-screen bg-bg flex flex-col">
       {/* Header */}
-      <div className="border-b border-gray-800 px-4 py-3 flex items-center gap-3 bg-gray-950/80 backdrop-blur-sm sticky top-0 z-10">
-        <Link href="/dashboard" className="text-gray-400 hover:text-white transition-colors">
-          ← Back
+      <div className="border-b border-line px-4 py-3 flex items-center gap-3 bg-bg sticky top-0 z-10">
+        <Link
+          href="/dashboard"
+          className="flex items-center gap-1.5 font-mono text-xs text-lo hover:text-ink uppercase tracking-wider shrink-0"
+        >
+          <IconBack className="w-3.5 h-3.5" /> Dashboard
         </Link>
+        <span className="h-4 w-px bg-line" />
         <div className="flex-1 min-w-0">
-          <h1 className="font-semibold text-white text-sm truncate">Technical Assistant</h1>
+          <div className="flex items-baseline gap-2.5">
+            <h1 className="text-sm font-semibold text-ink truncate">Technical Assistant</h1>
+            <span className="font-mono text-[10px] text-faint tracking-wider hidden sm:inline">
+              SESSION {id.slice(0, 8).toUpperCase()}
+            </span>
+          </div>
           {completedManuals.length > 0 && (
             <select
               value={selectedManualId}
               onChange={e => setSelectedManualId(e.target.value)}
-              className="text-xs text-gray-400 bg-transparent border-0 focus:outline-none cursor-pointer mt-0.5"
+              className="font-mono text-[11px] text-lo hover:text-mid bg-bg border border-line rounded-xs px-1.5 py-0.5 mt-1 focus:outline-none focus:border-line-hi cursor-pointer max-w-full"
             >
-              <option value="">All manuals</option>
+              <option value="">ALL MANUALS</option>
               {completedManuals.map(m => (
                 <option key={m.id} value={m.id}>{m.original_filename}</option>
               ))}
             </select>
           )}
         </div>
-        <div className="flex items-center gap-1.5">
-          <div className="w-2 h-2 rounded-full bg-green-400" />
-          <span className="text-xs text-gray-400">Groq llama-3.3-70b</span>
+        <div className="flex items-center gap-2 shrink-0">
+          <span className="w-1.5 h-1.5 bg-ok" />
+          <span className="font-mono text-[10px] text-faint tracking-wider hidden sm:inline">GROQ · GPT-OSS-120B</span>
         </div>
       </div>
 
       {/* Messages */}
       <div className="flex-1 overflow-y-auto px-4 py-6 space-y-6 max-w-3xl mx-auto w-full">
         {messages.length === 0 && !sending && (
-          <div className="text-center py-16">
-            <div className="text-4xl mb-3">🤖</div>
-            <h2 className="text-lg font-semibold text-gray-200 mb-2">MachineMind AI Ready</h2>
-            <p className="text-gray-400 text-sm">Ask any question about your machine manuals.</p>
-            <div className="mt-6 grid grid-cols-1 gap-2 text-left">
+          <div className="py-14">
+            <div className="font-mono text-[10px] uppercase tracking-[0.25em] text-accent mb-3">System Ready</div>
+            <h2 className="text-xl font-semibold text-ink mb-2">Ask your manuals.</h2>
+            <p className="text-sm text-lo mb-8">
+              Every answer is pulled from your uploaded documentation, with page-level citations.
+            </p>
+            <div className="border border-line rounded-xs divide-y divide-line bg-panel">
               {[
                 "What are the technical specifications?",
                 "How do I perform preventive maintenance?",
                 "What does error code E04 mean?",
                 "What tools are needed for this procedure?",
               ].map(s => (
-                <button key={s} onClick={() => setQuestion(s)}
-                  className="text-left px-4 py-2.5 rounded-xl glass hover:border-indigo-500/50 text-sm text-gray-300 hover:text-white transition-all">
+                <button
+                  key={s}
+                  onClick={() => setQuestion(s)}
+                  className="w-full text-left px-4 py-2.5 text-sm text-mid hover:text-ink hover:bg-raise flex items-center gap-3"
+                >
+                  <span className="font-mono text-xs text-accent">&gt;</span>
                   {s}
                 </button>
               ))}
@@ -127,52 +148,56 @@ export default function ChatPage() {
           </div>
         )}
 
-        {messages.map(msg => (
-          <div key={msg.id} className={`animate-msg flex gap-3 ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
-            {msg.role === "assistant" && (
-              <div className="w-8 h-8 rounded-xl bg-indigo-600/30 border border-indigo-500/30 flex items-center justify-center flex-shrink-0 text-sm">
-                ⚙️
+        {messages.map(msg =>
+          msg.role === "user" ? (
+            <div key={msg.id} className="animate-msg flex flex-col items-end">
+              <div className="font-mono text-[10px] uppercase tracking-widest text-faint mb-1.5">
+                Operator · {timeOf(msg.created_at)}
               </div>
-            )}
-            <div className={`max-w-[80%] ${msg.role === "user" ? "order-1" : ""}`}>
-              <div className={`rounded-2xl px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap ${
-                msg.role === "user"
-                  ? "bg-indigo-600 text-white rounded-tr-sm"
-                  : "glass text-gray-100 rounded-tl-sm"
-              }`}>
+              <div className="max-w-[80%] bg-raise border border-line rounded-xs px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap text-ink">
                 {msg.content}
               </div>
-              {/* Sources */}
-              {msg.sources && msg.sources.length > 0 && (
-                <div className="mt-2 space-y-1">
-                  {msg.sources.slice(0, 3).map((s, i) => (
-                    <SourceCard key={i} source={s} token={token ?? ""} />
-                  ))}
-                </div>
-              )}
             </div>
-            {msg.role === "user" && (
-              <div className="w-8 h-8 rounded-xl bg-gray-700 flex items-center justify-center flex-shrink-0 text-sm">
-                👤
+          ) : (
+            <div key={msg.id} className="animate-msg">
+              <div className="font-mono text-[10px] uppercase tracking-widest text-faint mb-1.5">
+                Assistant · {timeOf(msg.created_at)}
               </div>
-            )}
-          </div>
-        ))}
+              <div className="max-w-[90%] border border-line rounded-xs bg-panel px-4 py-3">
+                <p className="text-sm leading-relaxed whitespace-pre-wrap text-ink">{msg.content}</p>
+                {msg.sources && msg.sources.length > 0 && (
+                  <div className="border-t border-line mt-3 pt-2">
+                    <div className="font-mono text-[10px] uppercase tracking-[0.2em] text-lo mb-1">
+                      Sources · {msg.sources.length}
+                    </div>
+                    <div className="divide-y divide-line/60">
+                      {msg.sources.slice(0, 3).map((s, i) => (
+                        <SourceCard key={i} source={s} index={i} token={token ?? ""} />
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )
+        )}
 
         {/* Typing indicator */}
         {sending && (
-          <div className="animate-msg flex gap-3 justify-start">
-            <div className="w-8 h-8 rounded-xl bg-indigo-600/30 border border-indigo-500/30 flex items-center justify-center flex-shrink-0 text-sm">⚙️</div>
-            <div className="glass rounded-2xl rounded-tl-sm px-4 py-4 flex gap-1.5 items-center">
-              <div className="w-2 h-2 rounded-full bg-indigo-400 typing-dot" />
-              <div className="w-2 h-2 rounded-full bg-indigo-400 typing-dot" />
-              <div className="w-2 h-2 rounded-full bg-indigo-400 typing-dot" />
+          <div className="animate-msg">
+            <div className="font-mono text-[10px] uppercase tracking-widest text-faint mb-1.5">
+              Assistant · {timeOf(new Date().toISOString())}
+            </div>
+            <div className="w-fit border border-line rounded-xs bg-panel px-4 py-3.5 flex gap-1.5 items-center">
+              <span className="typing-dot w-1.5 h-1.5 bg-accent" />
+              <span className="typing-dot w-1.5 h-1.5 bg-accent" />
+              <span className="typing-dot w-1.5 h-1.5 bg-accent" />
             </div>
           </div>
         )}
 
         {error && (
-          <div className="text-center text-sm text-red-400 px-4 py-2 bg-red-900/20 rounded-xl border border-red-700/30">
+          <div className="text-center text-sm text-fault px-4 py-2 border border-fault/40 bg-fault/10 rounded-xs">
             {error}
           </div>
         )}
@@ -180,36 +205,34 @@ export default function ChatPage() {
       </div>
 
       {/* Input */}
-      <div className="border-t border-gray-800 bg-gray-950/80 backdrop-blur-sm px-4 py-4">
-        <form onSubmit={sendMessage} className="max-w-3xl mx-auto flex gap-3 items-end">
-          <div className="flex-1 relative">
-            <textarea
-              ref={textareaRef}
-              value={question}
-              onChange={e => setQuestion(e.target.value)}
-              onKeyDown={e => {
-                if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(e as any); }
-              }}
-              placeholder="Ask anything about your machine manuals… (Enter to send)"
-              rows={1}
-              disabled={sending}
-              className="w-full resize-none px-4 py-3 rounded-xl bg-gray-900 border border-gray-700 text-white placeholder-gray-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 disabled:opacity-50 max-h-32"
-              style={{ minHeight: "48px" }}
-            />
-          </div>
+      <div className="border-t border-line bg-bg px-4 py-4">
+        <form onSubmit={sendMessage} className="max-w-3xl mx-auto flex gap-2.5 items-end">
+          <textarea
+            ref={textareaRef}
+            value={question}
+            onChange={e => setQuestion(e.target.value)}
+            onKeyDown={e => {
+              if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(e as any); }
+            }}
+            placeholder="Ask anything about your machine manuals… (Enter to send)"
+            rows={1}
+            disabled={sending}
+            className="flex-1 resize-none px-3.5 py-3 rounded-xs bg-panel border border-line text-sm text-ink placeholder:text-faint focus:outline-none focus:border-accent disabled:opacity-50 max-h-32"
+            style={{ minHeight: "48px" }}
+          />
           <button
             type="submit"
             disabled={!question.trim() || sending}
-            className="w-12 h-12 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 text-white flex items-center justify-center flex-shrink-0 transition-colors"
+            className="w-12 h-12 rounded-xs bg-accent hover:bg-accent-hi disabled:opacity-40 text-bg flex items-center justify-center shrink-0"
           >
             {sending ? (
-              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+              <span className="typing-dot w-3 h-3 bg-bg" />
             ) : (
-              <span className="text-lg">↑</span>
+              <IconArrowUp className="w-5 h-5" />
             )}
           </button>
         </form>
-        <p className="text-center text-xs text-gray-600 mt-2">
+        <p className="text-center font-mono text-[10px] uppercase tracking-widest text-faint mt-2.5">
           Answers are grounded in your uploaded manuals. Always verify critical procedures.
         </p>
       </div>
@@ -217,64 +240,79 @@ export default function ChatPage() {
   );
 }
 
-function SourceCard({ source, token }: { source: Source; token: string }) {
+function SourceCard({ source, index, token }: { source: Source; index: number; token: string }) {
   const [open, setOpen] = useState(false);
   const pageImg = source.page_start
     ? manualPageUrl(source.manual_id, source.page_start, token)
     : null;
-  const kindIcon = source.content_type === "figure" ? "🖼"
-    : source.content_type === "table" ? "▦" : "📄";
+  const pageRange = source.page_end && source.page_end !== source.page_start
+    ? `p.${source.page_start}–${source.page_end}`
+    : `p.${source.page_start}`;
   return (
-    <button
-      onClick={() => setOpen(!open)}
-      className="w-full text-left px-3 py-2 rounded-lg bg-gray-900/70 border border-gray-700/50 hover:border-indigo-500/30 transition-all"
-    >
-      <div className="flex items-center gap-2">
-        <span className="text-xs text-indigo-400">{kindIcon}</span>
-        <span className="text-xs text-gray-400 flex-1 truncate">
-          {source.section_title || (source.content_type === "figure" ? "Figure" : source.content_type === "table" ? "Table" : "Section")} — p.{source.page_start}
-          {source.page_end && source.page_end !== source.page_start ? `–${source.page_end}` : ""}
+    <div>
+      <button
+        onClick={() => setOpen(!open)}
+        className="w-full text-left py-2 flex items-center gap-2 font-mono text-xs text-mid hover:text-ink group"
+      >
+        <span className="text-accent shrink-0">SRC {pad3(index + 1)}</span>
+        <span className="text-faint">·</span>
+        <span className="text-lo group-hover:text-mid shrink-0">{kindGlyph(source.content_type)}</span>
+        <span className="text-faint">·</span>
+        <span className="text-mid group-hover:text-ink flex-1 min-w-0 truncate">
+          {source.section_title || kindFallback(source.content_type)}
         </span>
-        <span className="text-xs text-gray-600">{open ? "▲" : "▼"}</span>
-      </div>
+        <span className="shrink-0">{pageRange}</span>
+        <span className="text-faint shrink-0">↗</span>
+        <IconChevron className={`w-3 h-3 text-faint shrink-0 ${open ? "rotate-180" : ""}`} />
+      </button>
       {open && (
-        <div className="mt-2 space-y-2 border-t border-gray-700/50 pt-2">
-          <p className="text-xs text-gray-400 leading-relaxed">{source.excerpt}</p>
+        <div className="py-2 space-y-2.5">
+          <p className="text-xs text-lo leading-relaxed">{source.excerpt}</p>
           {pageImg && (
             <div>
-              <img
-                src={pageImg}
-                alt={`Manual page ${source.page_start}`}
-                loading="lazy"
-                className="w-full max-h-72 object-contain object-top rounded-lg border border-gray-700/50 bg-white"
-              />
+              <div className="border border-line rounded-xs bg-white p-0 w-fit max-w-full">
+                <img
+                  src={pageImg}
+                  alt={`Manual page ${source.page_start}`}
+                  loading="lazy"
+                  className="w-full max-w-96 max-h-72 object-contain object-top block"
+                />
+              </div>
               <a
                 href={pageImg}
                 target="_blank"
                 rel="noreferrer"
                 onClick={e => e.stopPropagation()}
-                className="mt-1 inline-block text-xs text-indigo-400 hover:text-indigo-300"
+                className="mt-1.5 inline-block font-mono text-[11px] text-accent hover:text-accent-hi"
               >
-                View full page ↗
+                Open full page ↗
               </a>
             </div>
           )}
         </div>
       )}
-    </button>
+    </div>
   );
 }
 
 function ChatSkeleton() {
   return (
-    <div className="min-h-screen bg-gray-950 flex flex-col">
-      <div className="border-b border-gray-800 h-14 px-4 flex items-center gap-3">
+    <div className="min-h-screen bg-bg flex flex-col">
+      <div className="border-b border-line h-14 px-4 flex items-center gap-3">
         <div className="skeleton w-16 h-4" />
         <div className="skeleton flex-1 h-4" />
       </div>
-      <div className="flex-1 p-6 space-y-4">
-        {[1, 2, 3].map(i => <div key={i} className="skeleton h-16 rounded-2xl" />)}
+      <div className="flex-1 p-6 space-y-4 max-w-3xl mx-auto w-full">
+        {[1, 2, 3].map(i => <div key={i} className="skeleton h-16" />)}
       </div>
     </div>
+  );
+}
+
+export default function ChatPageRoute() {
+  return (
+    <Suspense fallback={<ChatSkeleton />}>
+      <ChatPage />
+    </Suspense>
   );
 }

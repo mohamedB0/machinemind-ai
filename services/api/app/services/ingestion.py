@@ -2,6 +2,7 @@
 PDF Ingestion Service — extracts text, chunks it, generates embeddings, indexes in pgvector
 """
 import hashlib
+import logging
 import re
 import uuid
 from pathlib import Path
@@ -15,6 +16,8 @@ from sqlalchemy import select, update
 from app.core.config import get_settings
 from app.models.machine import Manual, DocumentPage, IngestionStatus
 from app.models.rag import DocumentChunk
+
+logger = logging.getLogger(__name__)
 
 settings = get_settings()
 
@@ -317,11 +320,14 @@ async def _build_figure_chunks(
     page_imgs_dir: Path,
 ) -> list[dict]:
     """
-    QA item 3 / Option A: send figure-flagged pages to the Groq vision model and
-    turn each description into a searchable content_type="figure" chunk.
-    Failures and missing API key degrade gracefully (no figure chunks).
+    Figure pages (photo/schematic flags) become searchable content_type="figure"
+    chunks:
+      1. Cloud vision LLM (groq → gemini → openrouter, auto-fallback) when any
+         provider is configured — semantic description of the diagram.
+      2. Local Tesseract OCR otherwise — exact transcription of visible labels.
+    Failures degrade gracefully (no figure chunks), never break ingestion.
     """
-    from app.services.vision import describe_figure
+    from app.services.figures import describe_page
 
     flagged = [p for p in pages_data if p.get("has_figure")][: settings.FIGURE_MAX_PAGES]
     chunks: list[dict] = []
@@ -329,8 +335,8 @@ async def _build_figure_chunks(
         png = page_imgs_dir / f"page_{p['page_number']:03d}.png"
         if not png.exists():
             continue
-        description = await describe_figure(str(png))
-        if not description:
+        result = await describe_page(str(png))
+        if not result:
             continue
         reason = p.get("figure_reason")
         kind = f", {reason}" if reason else ""
@@ -338,10 +344,72 @@ async def _build_figure_chunks(
             "id": str(uuid.uuid4()),
             "manual_id": manual_id,
             "machine_id": str(manual.machine_id),
-            "text": f"Figure page {p['page_number']}{kind} of this manual:\n{description}",
+            "text": (
+                f"Figure page {p['page_number']}{kind} of this manual "
+                f"[{result['source']}]:\n{result['text']}"
+            ),
             "page_number": p["page_number"],
             "content_type": "figure",
         })
+    if chunks:
+        sources = sorted({c["text"].split("[", 1)[1].split("]")[0] for c in chunks})
+        logger.info("Figure chunks: %s (%d pages)", ", ".join(sources), len(chunks))
+    return chunks
+
+
+def _build_ocr_chunks(
+    file_path: str,
+    pages_data: list[dict],
+    manual: "Manual",
+    manual_id: str,
+) -> list[dict]:
+    """
+    Pages flagged needs_ocr (scanned PDFs, near-empty text) are transcribed by
+    local Tesseract OCR and indexed like normal slices, so a scanned build hand
+    manual still becomes searchable. Content is chunked with the same
+    sliding-window rule as body text. Capped at OCR_MAX_PAGES per manual.
+    """
+    flagged = [
+        p for p in pages_data
+        if p.get("needs_ocr") and len(p.get("text") or "") < 50
+    ][: settings.OCR_MAX_PAGES]
+    if not flagged:
+        return []
+
+    from app.services.ocr import ocr_pdf_page
+
+    chunks: list[dict] = []
+    chunk_index = 0
+    for p in flagged:
+        text = ocr_pdf_page(file_path, p["page_number"])
+        if not text:
+            continue
+        words = text.split()
+        i = 0
+        part = 0
+        total_parts = max(1, -(-len(words) // (settings.CHUNK_SIZE - settings.CHUNK_OVERLAP)))
+        while i < len(words):
+            window = words[i: i + settings.CHUNK_SIZE]
+            slice_text = " ".join(window)
+            label = f" (part {part + 1}/{total_parts})" if total_parts > 1 else ""
+            chunks.append({
+                "id": str(uuid.uuid4()),
+                "manual_id": manual_id,
+                "machine_id": str(manual.machine_id),
+                "chunk_index": 0,
+                "text": (
+                    f"Scanned page {p['page_number']} of this manual (OCR):{label}\n{slice_text}"
+                ),
+                "page_start": p["page_number"],
+                "page_end": p["page_number"],
+                "section_title": None,
+                "content_type": "ocr",
+            })
+            part += 1
+            chunk_index += 1
+            i += settings.CHUNK_SIZE - settings.CHUNK_OVERLAP
+    if flagged and not chunks:
+        logger.warning("OCR produced nothing for %d flagged pages", len(flagged))
     return chunks
 
 
@@ -393,27 +461,37 @@ async def run_ingestion(manual_id: str, file_path: str, db: AsyncSession):
         if not raw_chunks:
             raise ValueError("No text could be extracted from this PDF.")
 
-        # 3b. Vision: figure-flagged pages become searchable figure chunks (fail-open)
+        # 3b. Figure pages → searchable figure chunks (vision LLM, OCR fallback — fail-open)
         try:
             figure_chunks = await _build_figure_chunks(
                 pages_data, manual, manual_id, page_imgs_dir,
             )
         except Exception:
-            import logging
-            logging.getLogger(__name__).exception("Figure chunking failed — continuing without it")
+            logger.exception("Figure chunking failed — continuing without it")
             figure_chunks = []
-        for j, fc in enumerate(figure_chunks):
+
+        # 3c. Scanned pages (needs_ocr) → transcription OCR locale (fail-open)
+        try:
+            ocr_chunks = _build_ocr_chunks(file_path, pages_data, manual, manual_id)
+        except Exception:
+            logger.exception("OCR chunking failed — continuing without it")
+            ocr_chunks = []
+
+        for extra in (*figure_chunks, *ocr_chunks):
             raw_chunks.append({
-                "id": fc["id"],
-                "manual_id": fc["manual_id"],
-                "machine_id": fc["machine_id"],
-                "chunk_index": len(raw_chunks) + j,
-                "text": fc["text"],
-                "page_start": fc["page_number"],
-                "page_end": fc["page_number"],
+                "id": extra["id"],
+                "manual_id": extra["manual_id"],
+                "machine_id": extra["machine_id"],
+                "chunk_index": 0,  # renumbered below
+                "text": extra["text"],
+                "page_start": extra.get("page_number") or extra.get("page_start"),
+                "page_end": extra.get("page_number") or extra.get("page_end"),
                 "section_title": None,
-                "content_type": fc["content_type"],
+                "content_type": extra["content_type"],
             })
+        # Sequential chunk_index over everything (body, tables, figures, OCR)
+        for position, chunk in enumerate(raw_chunks):
+            chunk["chunk_index"] = position
 
         # 4. Generate embeddings in batches
         texts = [c["text"] for c in raw_chunks]

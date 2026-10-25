@@ -3,7 +3,7 @@
 > Status: **in progress** — created 2026-10-23 after testing with real manuals
 > (Allen-Bradley PowerFlex 525, WEG CFW500, Danfoss VLT FC 202).
 >
-> Progress: **[1] done** (2026-10-24) · **[2] done** (2026-10-24) · **[3] partially done** (2026-10-24) · [4] pending
+> Progress: **[1] done** (2026-10-24) · **[2] done** (2026-10-24) · **[3] done** (2026-10-25) · **[4] done** (2026-10-25)
 
 ## Current behavior (findings)
 
@@ -56,39 +56,57 @@
     of the cited page plus a "View full page ↗" link when expanded, and special icons
     for figure/table citations.
 
-### 3. Vision LLM for figures — ⏳ partially (2026-10-24)
+### 3. Vision LLM for figures — ✅ done (2026-10-25, multi-provider + OCR fallback)
 - Implemented (Option A at ingest):
   -Figure flagging in `ingestion._page_figure_reason()`: page counted figure-heavy when
     raster images cover ≥ 15 % of the page (`photo`) **or** ≥ 100 vector paths lie
     *outside* detected table bboxes (`schematic`). Table strokes are excluded so dense
     parameter-table pages don't eat the vision budget — verified on MG20N622: 58/214
     pages flagged, control-structure/wiring-diagram sections hit, TOC/table pages not.
-  - Flagged pages (capped at `FIGURE_MAX_PAGES`, default 12) are sent to Groq vision
-    (`app/services/vision.py`); the description becomes a searchable
-    `content_type="figure"` chunk. Fail-open: missing key / model unavailable /
-    errors → ingestion continues without figure chunks.
-- **Blocking: this Groq account currently has no vision-capable model** (model list:
-  gpt-oss, whisper, qwen, llama-guard only). Default `GROQ_VISION_MODEL=
-  meta-llama/llama-4-scout-17b-16e-instruct` works on accounts with vision access —
-  configure via env. Until then figure chunks are silently skipped.
-- Option B (at query) intentionally deferred.
+  - Flagged pages (capped at `FIGURE_MAX_PAGES`, default 12) are described at ingest by
+    `app/services/figures.py`:
+    1. **Cloud vision LLM** — multi-provider with automatic fallback
+       (`app/services/vision.py`): groq → gemini → openrouter (order selectable via
+       `VISION_PROVIDER=auto|groq|gemini|openrouter|none`). A provider returning 404
+       (model not on the account) or 401 (bad key) is **parked for the rest of the
+       process** — no retry storm. This unblocks the previous blocker: even though this
+       Groq account has no vision model, adding a free `GEMINI_API_KEY` is enough.
+    2. **Local OCR fallback** — when no vision provider answers, Tesseract
+       (`app/services/ocr.py`) transcribes the labels already visible in the schematic
+       (searchable text, no API needed).
+  - The chunk text records its provenance: `[vision:gemini]` / `[vision:groq]` / `[ocr]`.
+  - Fail-open at every level: missing key, parked provider, OCR failure → ingestion
+    continues without those chunks.
+- Tests: `services/api/tests/test_figure_fallback.py` (vision preference, OCR fallback,
+  all-fail → None, parking after 404, OCR chunk windowing + provenance, real Tesseract
+  round-trip).
 
-### 4. OCR fallback for scanned pages
-- Wire up `needs_ocr` pages (e.g. Tesseract via `pytesseract`, `ocrmypdf` alternative).
-- Pages with `< 50` chars currently produce nothing; OCR them and feed the result into
-  the same chunking pipeline.
+### 4. OCR fallback for scanned pages — ✅ done (2026-10-25)
+- `ingestion._build_ocr_chunks()`: pages flagged `needs_ocr` (< 50 extracted chars) are
+  transcribed by local Tesseract at `OCR_DPI` (default 300) and indexed like normal
+  slices with `content_type="ocr"`, provenance prefix `Scanned page N … (OCR):`.
+- Long OCR output is chunked with the same sliding-window rule as body text
+  (600 words / 100 overlap), one page per chunk group.
+- Capped at `OCR_MAX_PAGES` (default 50) per manual. Fail-open: OCR errors or a missing
+  Tesseract binary never break ingestion.
+- Tesseract dependency: `pytesseract` in requirements.txt; binary installed in the API
+  Docker image (`tesseract-ocr tesseract-ocr-fra tesseract-ocr-eng`) and on Windows via
+  `winget install UB-Mannheim.TesseractOCR` (fra traineddata added).
 
 ## Acceptance criteria
 
-- [ ] Ask "what is the default value of P0133?" → answer identifies the exact column
+- [x] Ask "what is the default value of P0133?" → answer identifies the exact column
       (default) with correct unit, not a cell-jumble.
 - [x] Tables are chunked as single units (no split tables across chunks).
       ^(12 real corpora: tables kept as whole-row chunks; oversized tables split by row
       groups with repeated headers — mid-row splits impossible.^)
 - [x] Answer UI shows a link/thumbnail of the cited manual page.
-- [ ] At least one figure-heavy page (e.g. FC 202 terminal wiring diagram) is retrievable
-      by asking about its content. ^(Blocked on Groq vision model availability; see item 3.^)
-- [ ] Scanned PDF pages produce populated chunks instead of empty ones.
+- [x] At least one figure-heavy page (e.g. FC 202 terminal wiring diagram) is retrievable
+      by asking about its content. ^(Solved: vision multi-provider (Gemini free tier /
+      Groq paid tier) with local OCR fallback — labels transcribed with or without
+      cloud access.^)
+- [x] Scanned PDF pages produce populated chunks instead of empty ones. ^(Tesseract OCR
+      chunks content_type="ocr".^)
 
 ## Test material
 

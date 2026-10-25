@@ -14,8 +14,11 @@ export default function HomePage() {
   }, [token, isLoading]);
 
   return (
-    <div className="min-h-screen bg-gray-950 flex items-center justify-center">
-      <div className="w-8 h-8 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+    <div className="min-h-screen bg-bg flex items-center justify-center">
+      <div className="flex items-center gap-3">
+        <span className="typing-dot w-2.5 h-2.5 bg-accent" />
+        <span className="font-mono text-xs tracking-[0.2em] text-lo">INITIALIZING</span>
+      </div>
     </div>
   );
 }

@@ -35,6 +35,7 @@ services:
     volumes:
       - ./services/api:/app
       - uploads:/app/uploads
+      - hf-cache:/root/.cache/huggingface
 
   web:
     build:
@@ -52,3 +53,4 @@ services:
 volumes:
   pgdata:
   uploads:
+  hf-cache:

@@ -5,7 +5,7 @@ from sqlalchemy import text
 
 from app.core.config import get_settings
 from app.core.database import engine, Base
-from app.api.routes import auth, machines, chat, manuals
+from app.api.routes import auth, machines, chat, manuals, help_chat
 
 # Import all models so Alembic / create_all can see them
 from app.models import user, machine, rag  # noqa: F401
@@ -46,6 +46,7 @@ app.include_router(auth.router)
 app.include_router(machines.router)
 app.include_router(manuals.router)
 app.include_router(chat.router)
+app.include_router(help_chat.router)
 
 
 @app.get("/api/health")

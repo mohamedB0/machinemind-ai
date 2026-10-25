@@ -52,7 +52,23 @@ class Settings(BaseSettings):
     FIGURE_DRAWING_PATHS: int = 100         # vector paths outside tables → schematic page
     FIGURE_IMAGE_AREA_RATIO: float = 0.15   # raster image area / page area → photo page
     FIGURE_MAX_PAGES: int = 12              # max pages sent to vision per manual
+
+    # Vision: multi-provider with automatic fallback
+    # auto = first provider having credentials (groq → gemini → openrouter)
+    # groq | gemini | openrouter = force one provider; none = disabled
+    VISION_PROVIDER: str = "auto"
+    VISION_TIMEOUT_SECONDS: int = 90
     GROQ_VISION_MODEL: str = "meta-llama/llama-4-scout-17b-16e-instruct"
+    GEMINI_API_KEY: str = ""
+    GEMINI_VISION_MODEL: str = "gemini-3.6-flash"
+    OPENROUTER_API_KEY: str = ""
+    OPENROUTER_VISION_MODEL: str = "meta-llama/llama-4-scout:free"
+
+    # OCR (local Tesseract baseline — always available, no API key)
+    OCR_DPI: int = 300
+    OCR_LANG: str = "eng+fra"
+    OCR_MAX_PAGES: int = 50                 # max scanned pages OCR'd per manual
+    TESSERACT_CMD: str = ""                 # optional explicit path to tesseract.exe
 
     @property
     def allowed_origins_list(self) -> list[str]:

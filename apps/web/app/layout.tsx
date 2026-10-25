@@ -1,9 +1,11 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
+import { Space_Grotesk, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/lib/auth-context";
+import HelpChat from "@/components/help-chat";
 
-const inter = Inter({ subsets: ["latin"] });
+const grotesk = Space_Grotesk({ subsets: ["latin"], variable: "--font-grotesk" });
+const mono = JetBrains_Mono({ subsets: ["latin"], variable: "--font-jbmono" });
 
 export const metadata: Metadata = {
   title: "MachineMind AI — Technical Manual Assistant",
@@ -12,9 +14,12 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className="dark">
-      <body className={`${inter.className} bg-gray-950 text-gray-100 min-h-screen`}>
+    <html lang="en">
+      <body
+        className={`${grotesk.variable} ${mono.variable} font-sans bg-bg text-ink min-h-screen antialiased`}
+      >
         <AuthProvider>{children}</AuthProvider>
+        <HelpChat />
       </body>
     </html>
   );

@@ -2,9 +2,10 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# System deps for PyMuPDF and psycopg2
+# System deps for PyMuPDF, psycopg2 and Tesseract OCR
 RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc libpq-dev curl \
+    tesseract-ocr tesseract-ocr-fra tesseract-ocr-eng \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .

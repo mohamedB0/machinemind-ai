@@ -1,11 +1,14 @@
 "use client";
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/lib/auth-context";
 import { machinesApi, conversationsApi, Machine, Manual } from "@/lib/api";
+import { IconBack, IconChat, IconUpload } from "@/lib/icons";
 
-export default function MachinePage() {
+const pad = (n: number) => String(n).padStart(2, "0");
+
+function MachinePage() {
   const { id } = useParams<{ id: string }>();
   const { token, isLoading } = useAuth();
   const router = useRouter();
@@ -26,6 +29,7 @@ export default function MachinePage() {
     ]);
     setMachine(m as Machine);
     setManuals(mans as Manual[]);
+    setPolling(mans.some(x => x.status === "pending" || x.status === "processing"));
   };
 
   useEffect(() => {
@@ -67,103 +71,166 @@ export default function MachinePage() {
     }
   };
 
-  if (isLoading || loading) return <div className="min-h-screen bg-gray-950 flex items-center justify-center"><div className="w-8 h-8 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" /></div>;
-  if (!machine) return <div className="min-h-screen bg-gray-950 flex items-center justify-center text-gray-400">Machine not found</div>;
+  if (isLoading || loading) {
+    return (
+      <div className="min-h-screen bg-bg flex items-center justify-center">
+        <div className="flex items-center gap-3">
+          <span className="typing-dot w-2.5 h-2.5 bg-accent" />
+          <span className="font-mono text-xs tracking-[0.2em] text-lo">LOADING</span>
+        </div>
+      </div>
+    );
+  }
+  if (!machine) {
+    return (
+      <div className="min-h-screen bg-bg flex items-center justify-center font-mono text-xs uppercase tracking-widest text-lo">
+        Machine not found
+      </div>
+    );
+  }
 
   const completedManuals = manuals.filter(m => m.status === "completed");
 
   return (
-    <div className="min-h-screen bg-gray-950">
-      <nav className="border-b border-gray-800 px-6 py-4 flex items-center gap-3">
-        <Link href="/dashboard" className="text-gray-400 hover:text-white text-sm transition-colors">← Dashboard</Link>
-        <span className="text-gray-700">/</span>
-        <span className="text-white text-sm font-medium">{machine.name}</span>
+    <div className="min-h-screen bg-bg">
+      <nav className="border-b border-line px-6 py-3.5 flex items-center gap-3">
+        <Link href="/dashboard" className="flex items-center gap-1.5 font-mono text-xs text-lo hover:text-ink uppercase tracking-wider">
+          <IconBack className="w-3.5 h-3.5" /> Dashboard
+        </Link>
+        <span className="font-mono text-xs text-faint">/</span>
+        <span className="text-sm font-medium text-ink truncate">{machine.name}</span>
       </nav>
 
       <main className="max-w-4xl mx-auto px-6 py-8">
         {/* Machine header */}
-        <div className="glass rounded-2xl p-6 mb-6">
-          <div className="flex items-start justify-between">
-            <div>
-              <div className="flex items-center gap-3 mb-2">
-                <span className="text-3xl">🔩</span>
-                <h1 className="text-2xl font-bold text-white">{machine.name}</h1>
+        <div className="border border-line rounded-xs bg-panel p-6 mb-8">
+          <div className="flex items-start justify-between gap-4">
+            <div className="min-w-0">
+              <div className="font-mono text-[10px] uppercase tracking-[0.25em] text-accent mb-2">
+                Unit {id.slice(0, 8).toUpperCase()}
               </div>
-              {machine.manufacturer && <p className="text-gray-300">{machine.manufacturer}</p>}
-              {machine.model_number && <p className="text-sm text-gray-500">Model: {machine.model_number}</p>}
-              {machine.description && <p className="text-sm text-gray-400 mt-2">{machine.description}</p>}
+              <h1 className="text-xl font-semibold text-ink mb-3">{machine.name}</h1>
+              <div className="space-y-1 font-mono text-xs">
+                {machine.manufacturer && (
+                  <div className="flex gap-2"><span className="text-faint uppercase tracking-wider w-24 shrink-0">Manufacturer</span><span className="text-mid">{machine.manufacturer}</span></div>
+                )}
+                {machine.model_number && (
+                  <div className="flex gap-2"><span className="text-faint uppercase tracking-wider w-24 shrink-0">Model</span><span className="text-mid">{machine.model_number}</span></div>
+                )}
+              </div>
+              {machine.description && <p className="text-sm text-lo mt-3">{machine.description}</p>}
             </div>
             {completedManuals.length > 0 && (
-              <button onClick={startChat}
-                className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-medium text-sm transition-colors">
-                <span>💬</span> Start Chat
+              <button
+                onClick={startChat}
+                className="shrink-0 flex items-center gap-2 px-4 py-2.5 rounded-xs bg-accent hover:bg-accent-hi text-bg text-xs font-medium uppercase tracking-wider"
+              >
+                <IconChat className="w-4 h-4" /> Start Chat
               </button>
             )}
           </div>
         </div>
 
         {/* Manuals */}
-        <div>
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold text-white">Manuals ({manuals.length})</h2>
-            <label className={`flex items-center gap-2 px-4 py-2 rounded-xl ${uploading ? "bg-gray-700 cursor-not-allowed" : "bg-indigo-600 hover:bg-indigo-500 cursor-pointer"} text-white text-sm font-medium transition-colors`}>
+        <section>
+          <div className="flex items-center gap-3 mb-3">
+            <h2 className="text-sm font-semibold text-ink">Manuals</h2>
+            <span className="font-mono text-xs text-faint">{pad(manuals.length)}</span>
+            <div className="flex-1 h-px bg-line" />
+            {polling && (
+              <span className="typing-dot w-1.5 h-1.5 bg-accent" aria-label="Indexing" />
+            )}
+            <label className="flex items-center gap-2 px-3.5 py-2 rounded-xs border border-line hover:border-line-hi text-mid hover:text-ink text-xs font-mono uppercase tracking-wider cursor-pointer">
               {uploading ? (
-                <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> Uploading…</>
+                <><span className="typing-dot w-1.5 h-1.5 bg-accent" /> Indexing…</>
               ) : (
-                <><span>↑</span> Upload PDF</>
+                <>
+                  <IconUpload className="w-3.5 h-3.5" /> Upload PDF
+                </>
               )}
               <input type="file" accept=".pdf" onChange={handleUpload} disabled={uploading} className="hidden" />
             </label>
           </div>
 
           {uploadError && (
-            <div className="mb-4 px-4 py-3 rounded-xl bg-red-900/40 border border-red-700/50 text-red-300 text-sm">
+            <div className="mb-4 px-4 py-3 rounded-xs border border-fault/40 bg-fault/10 text-fault text-sm">
               {uploadError}
             </div>
           )}
 
           {manuals.length === 0 ? (
-            <div className="glass rounded-2xl p-12 text-center">
-              <div className="text-4xl mb-3">📄</div>
-              <p className="text-gray-300 font-medium mb-1">No manuals yet</p>
-              <p className="text-gray-500 text-sm">Upload a PDF to start asking questions</p>
+            <div className="border border-line rounded-xs bg-panel px-6 py-12 text-center">
+              <p className="text-sm font-medium text-ink mb-1">No manuals yet</p>
+              <p className="text-sm text-lo">Upload a PDF to start asking questions</p>
             </div>
           ) : (
-            <div className="space-y-3">
+            <div className="border border-line rounded-xs divide-y divide-line bg-panel">
+              {/* Table head */}
+              <div className="hidden sm:grid grid-cols-[1fr_5rem_5rem_7rem] gap-3 px-4 sm:px-5 py-2 border-b border-line font-mono text-[10px] uppercase tracking-[0.2em] text-faint">
+                <span>Document</span>
+                <span className="text-right">Pages</span>
+                <span className="text-right">Size</span>
+                <span className="text-right">Status</span>
+              </div>
               {manuals.map(m => (
-                <div key={m.id} className="glass rounded-xl px-5 py-4 flex items-center gap-4">
-                  <div className="text-2xl">📄</div>
-                  <div className="flex-1 min-w-0">
-                    <p className="font-medium text-white truncate">{m.original_filename}</p>
-                    <div className="flex items-center gap-3 mt-1">
-                      {m.page_count && <span className="text-xs text-gray-400">{m.page_count} pages</span>}
-                      {m.file_size && <span className="text-xs text-gray-500">{(m.file_size / 1024 / 1024).toFixed(1)} MB</span>}
-                      {m.language && <span className="text-xs text-gray-500">{m.language}</span>}
+                <div key={m.id} className="grid sm:grid-cols-[1fr_5rem_5rem_7rem] gap-2 sm:gap-3 px-4 sm:px-5 py-4 items-center hover:bg-raise">
+                  <div className="min-w-0">
+                    <p className="text-sm text-ink truncate">{m.original_filename}</p>
+                    {m.error_message && (
+                      <p className="font-mono text-[11px] text-fault mt-1 truncate">{m.error_message}</p>
+                    )}
+                    <div className="sm:hidden flex gap-3 mt-1 font-mono text-[11px] text-faint">
+                      {m.page_count && <span>{m.page_count} pages</span>}
+                      {m.file_size && <span>{(m.file_size / 1024 / 1024).toFixed(1)} MB</span>}
                     </div>
-                    {m.error_message && <p className="text-xs text-red-400 mt-1 truncate">{m.error_message}</p>}
                   </div>
-                  <StatusBadge status={m.status} />
+                  {m.page_count ? (
+                    <span className="hidden sm:block font-mono text-xs text-mid text-right">{m.page_count}</span>
+                  ) : (
+                    <span className="hidden sm:block font-mono text-xs text-faint text-right">—</span>
+                  )}
+                  <span className="hidden sm:block font-mono text-xs text-lo text-right">
+                    {m.file_size ? `${(m.file_size / 1024 / 1024).toFixed(1)} MB` : "—"}
+                  </span>
+                  <div className="flex sm:justify-end">
+                    <StatusBadge status={m.status} />
+                  </div>
                 </div>
               ))}
             </div>
           )}
-        </div>
+        </section>
       </main>
     </div>
   );
 }
 
 function StatusBadge({ status }: { status: string }) {
-  const map: Record<string, { cls: string; label: string; icon: string }> = {
-    pending:    { cls: "status-pending",    label: "Pending",    icon: "⏳" },
-    processing: { cls: "status-processing", label: "Processing", icon: "⚙️" },
-    completed:  { cls: "status-completed",  label: "Ready",      icon: "✓" },
-    error:      { cls: "status-error",      label: "Error",      icon: "✕" },
+  const map: Record<string, { cls: string; label: string }> = {
+    pending:    { cls: "status-pending",    label: "Pending" },
+    processing: { cls: "status-processing", label: "Processing" },
+    completed:  { cls: "status-completed",  label: "Ready" },
+    error:      { cls: "status-error",      label: "Error" },
   };
   const s = map[status] || map.pending;
+  const dot = status === "processing"
+    ? <span className="typing-dot w-1 h-1 bg-accent" />
+    : status === "completed"
+      ? <span className="w-1 h-1 bg-ok" />
+      : status === "error"
+        ? <span className="w-1 h-1 bg-fault" />
+        : <span className="w-1 h-1 bg-lo" />;
   return (
-    <span className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${s.cls}`}>
-      {s.icon} {s.label}
+    <span className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-xs text-[10px] uppercase tracking-wider ${s.cls}`}>
+      {dot} {s.label}
     </span>
+  );
+}
+
+export default function MachinePageRoute() {
+  return (
+    <Suspense fallback={null}>
+      <MachinePage />
+    </Suspense>
   );
 }
