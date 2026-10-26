@@ -20,8 +20,8 @@ export default function RegisterPage() {
     try {
       await authApi.register(email, password, fullName);
       router.push("/login?registered=1");
-    } catch (err: any) {
-      setError(err.message || "Registration failed");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Registration failed");
     } finally {
       setLoading(false);
     }

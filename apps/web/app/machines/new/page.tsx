@@ -25,9 +25,9 @@ export default function NewMachinePage() {
         model_number: form.model_number || undefined,
         description: form.description || undefined,
       }, token);
-      router.push(`/machines/${(machine as any).id}`);
-    } catch (err: any) {
-      setError(err.message);
+      router.push(`/machines/${machine.id}`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to create machine");
     } finally {
       setLoading(false);
     }
@@ -55,18 +55,18 @@ export default function NewMachinePage() {
           <div className="font-mono text-[10px] uppercase tracking-[0.2em] text-faint border-b border-line pb-3">
             Machine Record
           </div>
-          {[
+          {([
             { key: "name", label: "Machine name", placeholder: "CNC Mill XR-500", required: true },
-            { key: "manufacturer", label: "Manufacturer", placeholder: "Haas Automation" },
-            { key: "model_number", label: "Model number", placeholder: "XR-500-2023" },
-          ].map(f => (
+            { key: "manufacturer", label: "Manufacturer", placeholder: "Haas Automation", required: false },
+            { key: "model_number", label: "Model number", placeholder: "XR-500-2023", required: false },
+          ] as { key: "name" | "manufacturer" | "model_number"; label: string; placeholder: string; required: boolean }[]).map(f => (
             <div key={f.key}>
               <label className="block font-mono text-[10px] uppercase tracking-[0.2em] text-lo mb-1.5">
                 {f.label}{f.required && <span className="text-accent"> *</span>}
               </label>
               <input
                 type="text"
-                value={(form as any)[f.key]}
+                value={form[f.key]}
                 onChange={e => setForm(prev => ({ ...prev, [f.key]: e.target.value }))}
                 required={f.required}
                 placeholder={f.placeholder}

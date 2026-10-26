@@ -17,7 +17,7 @@ export default function DashboardPage() {
 
   useEffect(() => {
     if (!isLoading && !token) router.push("/login");
-  }, [token, isLoading]);
+  }, [token, isLoading, router]);
 
   useEffect(() => {
     if (!token) return;
@@ -25,8 +25,8 @@ export default function DashboardPage() {
       machinesApi.list(token),
       conversationsApi.list(token),
     ]).then(([m, c]) => {
-      setMachines(m as Machine[]);
-      setConversations(c as Conversation[]);
+      setMachines(m);
+      setConversations(c);
     }).finally(() => setLoading(false));
   }, [token]);
 

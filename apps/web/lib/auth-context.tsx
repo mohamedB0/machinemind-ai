@@ -1,10 +1,10 @@
 "use client";
-import { createContext, useContext, useState, useEffect, ReactNode } from "react";
-import { authApi } from "@/lib/api";
+import { createContext, useContext, useState, useEffect, ReactNode, useCallback } from "react";
+import { authApi, User } from "@/lib/api";
 
 interface AuthContextType {
   token: string | null;
-  user: any | null;
+  user: User | null;
   login: (email: string, password: string) => Promise<void>;
   logout: () => void;
   isLoading: boolean;
@@ -13,25 +13,33 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [token, setToken] = useState<string | null>(null);
-  const [user, setUser] = useState<any>(null);
+  const [token, setToken] = useState<string | null>(() =>
+    typeof window !== "undefined" ? localStorage.getItem("mm_token") : null
+  );
+  const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  useEffect(() => {
-    const stored = localStorage.getItem("mm_token");
-    if (stored) {
-      setToken(stored);
-      authApi.me(stored).then(setUser).catch(() => {
-        localStorage.removeItem("mm_token");
-        setToken(null);
-      }).finally(() => setIsLoading(false));
-    } else {
-      setIsLoading(false);
-    }
+  const clearToken = useCallback(() => {
+    localStorage.removeItem("mm_token");
+    setToken(null);
+    setUser(null);
   }, []);
 
+  useEffect(() => {
+    if (!token) {
+      queueMicrotask(() => setIsLoading(false));
+      return;
+    }
+    let active = true;
+    authApi.me(token)
+      .then(me => { if (active) setUser(me); })
+      .catch(() => { if (active) clearToken(); })
+      .finally(() => { if (active) setIsLoading(false); });
+    return () => { active = false; };
+  }, [token, clearToken]);
+
   const login = async (email: string, password: string) => {
-    const { access_token } = await authApi.login(email, password) as any;
+    const { access_token } = await authApi.login(email, password);
     localStorage.setItem("mm_token", access_token);
     setToken(access_token);
     const me = await authApi.me(access_token);
@@ -39,9 +47,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const logout = () => {
-    localStorage.removeItem("mm_token");
-    setToken(null);
-    setUser(null);
+    clearToken();
   };
 
   return (

@@ -2,23 +2,23 @@
 
 @theme {
   /* Surfaces */
-  --color-bg: #0a0b0d;
-  --color-panel: #0e1013;
-  --color-raise: #14171c;
+  --color-bg: #08090B;
+  --color-panel: #0D0F12;
+  --color-raise: #101216;
 
   /* Hairlines */
-  --color-line: #23262c;
+  --color-line: #22262D;
   --color-line-hi: #3c414b;
 
   /* Text tiers */
-  --color-ink: #e9ebee;
-  --color-mid: #9ba2ad;
-  --color-lo: #606875;
-  --color-faint: #4a515c;
+  --color-ink: #F4F5F7;
+  --color-mid: #A5AFBD;
+  --color-lo: #6B7788;
+  --color-faint: #57606D;
 
   /* Engineering accent — industrial orange */
-  --color-accent: #ff5c00;
-  --color-accent-hi: #ff7a29;
+  --color-accent: #FF641F;
+  --color-accent-hi: #FF7A3D;
 
   /* Status signals (used sparingly, mono chips only) */
   --color-ok: #2fbf71;
@@ -38,7 +38,7 @@ body {
 }
 
 ::selection {
-  background: rgba(255, 92, 0, 0.35);
+  background: rgba(255, 100, 31, 0.35);
   color: #ffffff;
 }
 
@@ -135,8 +135,8 @@ select {
 }
 .status-processing {
   @apply font-mono text-accent;
-  border: 1px solid rgba(255, 92, 0, 0.4);
-  background: rgba(255, 92, 0, 0.08);
+  border: 1px solid rgba(255, 100, 31, 0.4);
+  background: rgba(255, 100, 31, 0.08);
 }
 .status-completed {
   @apply font-mono text-ok;

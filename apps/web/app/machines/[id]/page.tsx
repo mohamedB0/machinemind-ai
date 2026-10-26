@@ -1,5 +1,5 @@
 "use client";
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useCallback, useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/lib/auth-context";
@@ -19,23 +19,37 @@ function MachinePage() {
   const [loading, setLoading] = useState(true);
   const [polling, setPolling] = useState(false);
 
-  useEffect(() => { if (!isLoading && !token) router.push("/login"); }, [token, isLoading]);
+  useEffect(() => { if (!isLoading && !token) router.push("/login"); }, [token, isLoading, router]);
 
-  const fetchData = async () => {
-    if (!token) return;
+  const fetchRaw = useCallback(async () => {
+    if (!token) return null;
     const [m, mans] = await Promise.all([
       machinesApi.get(id, token),
       machinesApi.listManuals(id, token),
     ]);
-    setMachine(m as Machine);
-    setManuals(mans as Manual[]);
-    setPolling(mans.some(x => x.status === "pending" || x.status === "processing"));
-  };
+    return { m, mans };
+  }, [token, id]);
 
   useEffect(() => {
     if (!token) return;
-    fetchData().finally(() => setLoading(false));
-  }, [token, id]);
+    (async () => {
+      const data = await fetchRaw();
+      if (data) {
+        setMachine(data.m);
+        setManuals(data.mans);
+        setPolling(data.mans.some(x => x.status === "pending" || x.status === "processing"));
+      }
+      setLoading(false);
+    })();
+  }, [token, id, fetchRaw]);
+
+  const fetchData = useCallback(async () => {
+    const data = await fetchRaw();
+    if (!data) return;
+    setMachine(data.m);
+    setManuals(data.mans);
+    setPolling(data.mans.some(x => x.status === "pending" || x.status === "processing"));
+  }, [fetchRaw]);
 
   // Poll for processing manuals
   useEffect(() => {
@@ -43,7 +57,7 @@ function MachinePage() {
     if (!processing || !token) return;
     const interval = setInterval(() => fetchData(), 3000);
     return () => clearInterval(interval);
-  }, [manuals, token]);
+  }, [manuals, token, fetchData]);
 
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -53,8 +67,8 @@ function MachinePage() {
     try {
       await machinesApi.uploadManual(id, file, token);
       await fetchData();
-    } catch (err: any) {
-      setUploadError(err.message);
+    } catch (err) {
+      setUploadError(err instanceof Error ? err.message : "Upload failed");
     } finally {
       setUploading(false);
       e.target.value = "";
@@ -65,9 +79,9 @@ function MachinePage() {
     if (!token || !machine) return;
     try {
       const conv = await conversationsApi.create(id, `Chat about ${machine.name}`, token);
-      router.push(`/chat/${(conv as any).id}`);
-    } catch (err: any) {
-      alert(err.message);
+      router.push(`/chat/${conv.id}`);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Failed to create conversation");
     }
   };
 

@@ -39,7 +39,7 @@ export const authApi = {
     });
   },
 
-  me: (token: string) => request("/api/auth/me", {}, token),
+  me: (token: string) => request<User>("/api/auth/me", {}, token),
 };
 
 // ── Machines ──────────────────────────────────────────────────────────────────
@@ -96,6 +96,14 @@ export const manualPageUrl = (manualId: string, page: number, token: string) =>
   `${API_BASE}/api/manuals/${manualId}/pages/${page}?token=${encodeURIComponent(token)}`;
 
 // ── Types ─────────────────────────────────────────────────────────────────────
+export interface User {
+  id: string;
+  email: string;
+  full_name?: string;
+  is_active?: boolean;
+  created_at?: string;
+}
+
 export interface Machine {
   id: string;
   name: string;

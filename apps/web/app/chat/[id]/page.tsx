@@ -27,15 +27,35 @@ function ChatPage() {
   const bottomRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  useEffect(() => { if (!isLoading && !token) router.push("/login"); }, [token, isLoading]);
+  useEffect(() => { if (!isLoading && !token) router.push("/login"); }, [token, isLoading, router]);
 
   useEffect(() => {
     if (!token || !id) return;
     Promise.all([
       conversationsApi.getMessages(id, token),
     ]).then(([msgs]) => {
-      setMessages(msgs as Message[]);
+      setMessages(msgs);
     }).finally(() => setLoading(false));
+  }, [token, id]);
+
+  useEffect(() => {
+    if (!token || !id) return;
+    let active = true;
+    conversationsApi.list(token)
+      .then(convs => {
+        if (!active) return;
+        const conv = convs.find(c => c.id === id);
+        if (conv?.machine_id) {
+          machinesApi.get(conv.machine_id, token)
+            .then(m => { if (active) setMachine(m); })
+            .catch(() => {});
+          machinesApi.listManuals(conv.machine_id, token)
+            .then(mans => { if (active) setManuals(mans); })
+            .catch(() => {});
+        }
+      })
+      .catch(() => {});
+    return () => { active = false; };
   }, [token, id]);
 
   useEffect(() => {
@@ -44,8 +64,8 @@ function ChatPage() {
 
   const completedManuals = manuals.filter(m => m.status === "completed");
 
-  const sendMessage = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const sendMessage = async (e?: React.FormEvent) => {
+    e?.preventDefault();
     if (!question.trim() || sending || !token) return;
     const q = question.trim();
     setQuestion("");
@@ -72,8 +92,8 @@ function ChatPage() {
         created_at: new Date().toISOString(),
       };
       setMessages(prev => [...prev, assistantMsg]);
-    } catch (err: any) {
-      setError(err.message || "Failed to get response");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to get response");
       setMessages(prev => prev.slice(0, -1));
     } finally {
       setSending(false);
@@ -95,7 +115,7 @@ function ChatPage() {
         <span className="h-4 w-px bg-line" />
         <div className="flex-1 min-w-0">
           <div className="flex items-baseline gap-2.5">
-            <h1 className="text-sm font-semibold text-ink truncate">Technical Assistant</h1>
+            <h1 className="text-sm font-semibold text-ink truncate">{machine?.name ?? "Technical Assistant"}</h1>
             <span className="font-mono text-[10px] text-faint tracking-wider hidden sm:inline">
               SESSION {id.slice(0, 8).toUpperCase()}
             </span>
@@ -212,7 +232,7 @@ function ChatPage() {
             value={question}
             onChange={e => setQuestion(e.target.value)}
             onKeyDown={e => {
-              if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(e as any); }
+              if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); void sendMessage(); }
             }}
             placeholder="Ask anything about your machine manuals… (Enter to send)"
             rows={1}
@@ -271,6 +291,7 @@ function SourceCard({ source, index, token }: { source: Source; index: number; t
           {pageImg && (
             <div>
               <div className="border border-line rounded-xs bg-white p-0 w-fit max-w-full">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={pageImg}
                   alt={`Manual page ${source.page_start}`}

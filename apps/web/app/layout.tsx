@@ -18,8 +18,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body
         className={`${grotesk.variable} ${mono.variable} font-sans bg-bg text-ink min-h-screen antialiased`}
       >
-        <AuthProvider>{children}</AuthProvider>
-        <HelpChat />
+        <AuthProvider>
+          {children}
+          <HelpChat />
+        </AuthProvider>
       </body>
     </html>
   );

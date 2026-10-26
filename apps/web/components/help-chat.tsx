@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { IconMark, IconChat, IconArrowUp } from "@/lib/icons";
+import { useAuth } from "@/lib/auth-context";
 import { helpApi } from "@/lib/api";
 
 type Msg = { role: "user" | "assistant"; content: string };
@@ -33,16 +34,15 @@ const WELCOME: Msg = {
 };
 
 export default function HelpChat() {
+  const { token, isLoading: authLoading } = useAuth();
   const [open, setOpen] = useState(false);
-  const [messages, setMessages] = useState<Msg[]>([]);
+  const [messages, setMessages] = useState<Msg[]>([WELCOME]);
   const [question, setQuestion] = useState("");
   const [sending, setSending] = useState(false);
   const [error, setError] = useState("");
   const bottomRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    if (open && messages.length === 0) setMessages([WELCOME]);
-  }, [open, messages.length]);
+  const visible = !authLoading && !!token;
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -68,6 +68,8 @@ export default function HelpChat() {
       setSending(false);
     }
   };
+
+  if (!visible) return null;
 
   return (
     <div className="fixed bottom-5 right-5 z-50 print:hidden">
